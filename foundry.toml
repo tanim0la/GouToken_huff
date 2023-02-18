@@ -9,4 +9,8 @@ fuzz_runs = 1_000
 remappings = [
   "forge-std=lib/forge-std/src/",
   "foundry-huff=lib/foundry-huff/src/",
+  "huffmate=lib/huffmate/src/"
+]
+fs_permissions = [
+  { access = "read", path = "./lib/huffmate/src/tokens/ERC20.huff"},
 ]

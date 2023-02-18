@@ -1,0 +1,305 @@
+
+/////////////////// INTERFACES ///////////////////
+
+#define function mint(uint256) nonpayable returns ()
+#define function burn(uint256) nonpayable returns ()
+#define function whitelistAddress() nonpayable returns ()
+#define function claimableAmount(uint256) nonpayable returns ()
+#define function claim() nonpayable returns ()
+#define function setOwner(address) nonpayable returns ()
+#define function getClaimableAmount() nonpayable returns (uint256)
+#define function owner() nonpayable returns (address)
+
+/////////////////// STORAGE SLOTS ///////////////////
+
+#define constant OWNER_SLOT = FREE_STORAGE_POINTER()
+#define constant CLAIM_AMOUNT_SLOT = FREE_STORAGE_POINTER()
+#define constant WL_ADDRESSES_SLOT = FREE_STORAGE_POINTER()
+#define constant CLAIMED_ADDRESSES_SLOT = FREE_STORAGE_POINTER()
+
+/////////////////// CONSTANTS ///////////////////
+
+#define constant TOKEN_NAME = 0xF47686F7374206F6620556368696861     // length(0xF)+Ghost of Uchiha
+#define constant TOKEN_SYM = 0x03474F55                             // length(0x03)+GOU
+#define constant MINT_AMOUNT = 0xA968163F0A57B400000                // 50,000 GOU
+#define constant CLAIM_AMOUNT = 0x56BC75E2D63100000                 // 100 GOU
+#define constant TRANSFER_SELECTOR = 0xa9059cbb                     // bytes4(keccak256("transfer(address,uint256)"))
+
+
+
+/////////////////// CONSTRUCTOR ///////////////////
+
+#define macro CONSTRUCTOR() = takes (0) returns (0) {
+    NON_PAYABLE()
+    // Copy the owner into memory from the bytecode
+    0x20                           // [size] - byte size to copy
+    0x40 codesize sub              // [offset, size] - offset in the code to copy from
+    0x00                           // [mem, offset, size] - offset in memory to copy to
+    codecopy                       // []
+
+    // Copy the owner from memory into the OWNER_SLOT storage location
+    0x00 mload                     // [owner]
+    [OWNER_SLOT]                   // [owner_slot, owner]
+    sstore                         // []
+
+    // Set initial claimable amount
+    [CLAIM_AMOUNT]                 // [claim_amount]
+    [CLAIM_AMOUNT_SLOT]            // [slot, claim_amount]
+    sstore                         // []
+
+    // Call ERC20_CONSTRUCTOR function in ERC20.huff
+    ERC20_CONSTRUCTOR()
+
+    // Mint some GOU tokens to the contract address
+    address                     // [to]
+    [MINT_AMOUNT]               // [mint_amount, to]
+
+    // Call mint function in ERC20.huff passing two arguments
+    _MINT()                     // []
+}
+
+/////////////////// MACROS ///////////////////
+
+// Claim Gou Tokens
+#define macro CLAIM() = takes (0) returns (0) {
+
+    NON_PAYABLE()
+
+    // Check if caller is already whitelisted
+    IS_WHITELISTED()
+
+    // Check if caller has claimed
+    CALLER_CLAIMED()
+
+    // Set caller claimed to true before sending the token to caller
+    caller                          // [msg.sender]
+    0x20                            // [mem, msg.sender]
+    mstore                          // []
+
+    [CLAIMED_ADDRESSES_SLOT]        // [slot]
+    0x40                            // [mem, slot]
+    mstore                          // []
+
+    0x01 0x40 0x20 sha3             // [hash, 0x01]
+    sstore                          // []
+
+    // Transfer GOU token to caller
+    [TRANSFER_SELECTOR]             // [funcSig]
+    0x00                            // [mem, funcSig]
+    mstore                          // []
+
+    [CLAIM_AMOUNT_SLOT] sload       // [claimAmount]
+    0x40                            // [mem, claimAmount]
+    mstore                          // []
+
+    0x00 dup1                       // [out, outSize]
+    0x6c 0x1c                       // [in, inSize, out, outSize]
+    0x00                            // [callvalue, in, inSize, out, outSize]
+    address                         // [contract, callvalue, in, inSize, out, outSize]
+    gas                             // [gas, contract, callvalue, in, inSize, out, outSize]
+    call                            // []
+
+    // Stop execution
+    stop
+}
+
+// Whitelist
+#define macro WL_ADDRESS() = takes (0) returns (0) {
+    NON_PAYABLE()
+
+    caller                              // [msg.sender]
+    0x00                                // [mem, msg.sender]
+    mstore                              // []
+
+    [WL_ADDRESSES_SLOT]                 // [slot]
+    0x20                                // [mem, slot]
+    mstore                              // []
+
+    0x01                                // [value]
+    0x40                                // [size, value]
+    0x00                                // [offset, size, value]
+    sha3                                // [hash, value]
+    sstore                              // []
+
+    // Stop execution
+    stop
+
+}
+
+// Set claimable amount
+#define macro SET_CLAIMABLE_AMOUNT() = takes (0) returns (0) {
+    NON_PAYABLE()
+
+    // Check that the caller is authorized
+    IS_OWNER()
+
+    0x04 calldataload                   // [new_claim_amount]
+    [CLAIM_AMOUNT_SLOT]                 // [slot, new_claim_amount]
+    sstore                              // []
+
+    // Stop execution
+    stop
+}
+
+// Get claimable amount
+#define macro GET_CLAIMABLE_AMOUNT() = takes (0) returns (0) {
+    NON_PAYABLE()
+
+    [CLAIM_AMOUNT_SLOT] sload                   // [claim_amount]
+    0x00                                        // [mem, claim_amount]
+    mstore                                      // []
+
+    0x20 0x00 return                            // []
+}
+
+// Mint 
+#define macro MINT() = takes (0) returns (0) {
+    NON_PAYABLE()
+
+    // Check that the caller is authorized
+    IS_OWNER()
+
+    address                     // [to]
+    0x04 calldataload           // [amount, to]
+    _MINT()                     // []
+
+    // Stop execution
+    stop
+}
+
+// Burn 
+#define macro BURN() = takes (0) returns (0) {
+    NON_PAYABLE()
+
+    // Check that the caller is authorized
+    IS_OWNER()
+
+    address                     // [from]
+    0x04 calldataload           // [amount, from]
+    _BURN()                     // []
+
+    // Stop execution
+    stop
+}
+
+// Sets a new owner
+#define macro SET_OWNER() = takes (0) returns (0) {
+    NON_PAYABLE()
+    // Check that the caller is authorized
+    IS_OWNER()
+
+    // Set new owner
+    0x04 calldataload            // [new_owner]
+    [OWNER_SLOT]                 // [owner_slot, new_owner]
+    sstore                       // []
+
+    // Stop execution
+    stop
+}
+
+// Returns the Owner
+#define macro OWNER() = takes (0) returns (0) {
+    NON_PAYABLE()
+    [OWNER_SLOT] sload          // [owner]
+    0x00                        // [mem, owner]
+    mstore                      // []
+
+    0x20 0x00 return            // []
+}
+
+
+
+/////////////////// MODIFIERS ///////////////////
+
+// Is_Owner
+#define macro IS_OWNER() = takes (0) returns (0) {
+    caller                      // [msg.sender]
+    [OWNER_SLOT] sload          // [owner, msg.sender]
+    eq authed jumpi             // [authed]
+
+    // Revert if authed is 0
+    0x00 0x00 revert
+
+    authed:
+}
+
+// Is_Wl
+#define macro IS_WHITELISTED() = takes (0) returns (0) {
+    caller                              // [msg.sender]
+    0x00                                // [mem, msg.sender]
+    mstore                              // []
+
+    [WL_ADDRESSES_SLOT]                 // [slot]
+    0x20                                // [mem, slot]
+    mstore                              // []
+
+    0x40                                // [size]
+    0x00                                // [offset, size]
+    sha3                                // [hash]
+    sload                               // [hash_value]
+    0x01                                // [0x01, hash_value]
+    eq wl jumpi
+
+    // Revert if wl is 0 (false) 
+    0x00 0x00 revert
+
+    wl:
+}
+
+// Claimed
+#define macro CALLER_CLAIMED() = takes (0) returns (0) {
+    caller                          // [msg.sender]
+    0x00                            // [mem, msg.sender]
+    mstore                          // []
+
+    [CLAIMED_ADDRESSES_SLOT]        // [slot]
+    0x20                            // [mem, slot]
+    mstore                          // []
+
+    0x40 0x00 sha3                  // [hash]
+    sload                           // [valueInHash]
+    iszero pass jumpi
+
+    // Revert if pass is 0 (false), meaning caller already claimed
+    0x00 0x00 revert
+
+    pass:
+}
+
+
+/////////////////// MAIN ///////////////////
+
+#define macro MAIN() = takes (0) returns (0) {
+    0x00 calldataload 0xe0 shr              // [selector]
+
+    dup1 __FUNC_SIG(whitelistAddress)       eq wlJump          jumpi
+    dup1 __FUNC_SIG(claim)                  eq claimJump       jumpi
+    dup1 __FUNC_SIG(mint)                   eq mintJump        jumpi
+    dup1 __FUNC_SIG(burn)                   eq burnJump        jumpi
+    dup1 __FUNC_SIG(setOwner)               eq setOwnerJump    jumpi
+    dup1 __FUNC_SIG(owner)                  eq ownerJump       jumpi
+    dup1 __FUNC_SIG(claimableAmount)        eq claimAmountJump jumpi
+    dup1 __FUNC_SIG(getClaimableAmount)     eq gcaJump         jumpi
+
+    // Call ERC20_MAIN function in ERC20.huff
+    ERC20_MAIN()
+
+    0x00 0x00 revert
+
+    wlJump:
+        WL_ADDRESS()
+    claimJump:
+        CLAIM()
+    mintJump:
+        MINT()
+    burnJump:
+        BURN()
+    setOwnerJump:
+        SET_OWNER()
+    ownerJump:
+        OWNER()
+    claimAmountJump:
+        SET_CLAIMABLE_AMOUNT()
+    gcaJump:
+        GET_CLAIMABLE_AMOUNT()
+}
