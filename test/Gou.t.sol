@@ -5,7 +5,6 @@ import "foundry-huff/HuffDeployer.sol";
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-// import {IERC20} from "../lib/huffmate/src/tokens/interfaces/IERC20.sol";
 import {IERC20} from "huffmate/tokens/interfaces/IERC20.sol";
 
 contract GouTest is Test {
