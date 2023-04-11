@@ -5,7 +5,7 @@
 Versatile Huff Project Template using Foundry.
 
 
-## Getting Started
+## Getting Started 
 
 ### Requirements
 
